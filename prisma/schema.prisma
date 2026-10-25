@@ -1,0 +1,162 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  name           String?
+  password       String?
+  image          String?
+  provider       String?
+  providerId     String?
+  role           Role      @default(USER)
+  organizationId String?   @map("organization_id")
+  organization   Organization? @relation("OrganizationMembers", fields: [organizationId], references: [id])
+  skills         Skill[]
+  versionRecords SkillVersion[]  @relation("UserVersions")
+  testRecords    SkillTest[]     @relation("UserTests")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("users")
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  members   User[]   @relation("OrganizationMembers")
+  skills    Skill[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("organizations")
+}
+
+model Skill {
+  id                  String              @id @default(cuid())
+  ownerId             String              @map("owner_id")
+  owner               User                @relation(fields: [ownerId], references: [id])
+  organizationId      String?             @map("organization_id")
+  organization        Organization?       @relation(fields: [organizationId], references: [id])
+  name                String
+  slug                String              @unique
+  description         String              
+  content             String  @default("{}")
+  version             String              @default("1.0.0")
+  tags                String   @default("")
+  category            String?
+  technology          String?
+  visibility          Visibility          @default(PRIVATE)
+  compatiblePlatforms String   @default("") @map("compatible_platforms")
+  status              SkillStatus         @default(DRAFT)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  versions            SkillVersion[]
+  tests               SkillTest[]
+  installations       SkillInstallation[]
+
+  @@map("skills")
+}
+
+model SkillVersion {
+  id        String   @id @default(cuid())
+  skillId   String   @map("skill_id")
+  skill     Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  version   String
+  content   String
+  metadata String  @default("{}")
+  status    VersionStatus @default(DRAFT)
+  createdAt DateTime @default(now())
+  createdBy String
+  user      User     @relation("UserVersions", fields: [createdBy], references: [id])
+
+  @@unique([skillId, version])
+  @@map("skill_versions")
+}
+
+model SkillTest {
+  id          String           @id @default(cuid())
+  skillId     String           @map("skill_id")
+  skill       Skill            @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  name        String
+  description String?          
+  input       String           
+  expected    String           
+  results     SkillTestResult[]
+  createdAt   DateTime         @default(now())
+  createdBy   String
+  user        User             @relation("UserTests", fields: [createdBy], references: [id])
+
+  @@map("skill_tests")
+}
+
+model SkillTestResult {
+  id       String     @id @default(cuid())
+  testId   String     @map("test_id")
+  test     SkillTest  @relation(fields: [testId], references: [id], onDelete: Cascade)
+  passed   Boolean    @default(false)
+  output   String?    
+  error    String?    
+  score    Float      @default(0)
+  createdAt DateTime  @default(now())
+
+  @@map("skill_test_results")
+}
+
+model SkillAdapter {
+  id        String   @id @default(cuid())
+  name      String
+  platform  String
+  config    String @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("skill_adapters")
+}
+
+model SkillInstallation {
+  id          String   @id @default(cuid())
+  skillId     String   @map("skill_id")
+  skill       Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  platform    String
+  targetPath  String?  @map("target_path")
+  installedAt DateTime @default(now())
+  installedBy String
+  status      String   @default("PENDING")
+
+  @@unique([skillId, platform])
+  @@map("skill_installations")
+}
+
+enum Role {
+  USER
+  ADMIN
+  ORG_ADMIN
+}
+
+enum Visibility {
+  PRIVATE
+  ORGANIZATION
+  PUBLIC
+}
+
+enum SkillStatus {
+  DRAFT
+  GENERATING
+  REQUIRES_REVIEW
+  PUBLISHED
+  ARCHIVED
+}
+
+enum VersionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
